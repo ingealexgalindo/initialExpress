@@ -8,7 +8,7 @@ import {
   getFolderList,
   getListFilesWithParents,
 } from "../controllers/driveController";
-import { saveFolder } from "../controllers/dbControllers";
+import { saveFiles, saveFolder } from "../controllers/dbControllers";
 
 const router = express.Router();
 
@@ -121,8 +121,35 @@ router.get("/save-folder-list", async (req: Request, res: Response) => {
 router.get("/all-filesWParents", async (req: Request, res: Response) => {
   try {
     const authClient: OAuth2Client = await authorize();
-    const folderList = await getListFilesWithParents(authClient);
-    res.json(folderList);
+    const filesList = await getListFilesWithParents(authClient);
+
+    const saveResults = [];
+
+    for (const file of filesList) {
+      if (!file.createdTime) {
+        console.warn(`File ${file.fileName || "Unknown"} has no createdTime.`);
+        continue;
+      }
+
+      const fileCreatedTime = new Date(file.createdTime);
+      if (isNaN(fileCreatedTime.getTime())) {
+        console.error(`Invalid date format for file: ${file.fileName}`);
+        continue;
+      }
+      const result = await saveFiles({
+        FileName: file.fileName || "",
+        FileId: file.fileId,
+        ParentFolderId: file.parentFolderId,
+        FileCreatedTime: fileCreatedTime,
+        UserCreated: "AUTO_PROCESS",
+        DateCreated: new Date(),
+      });
+      saveResults.push(result);
+    }
+
+    res
+      .status(200)
+      .json({ message: "Files saved successfully!", results: saveResults });
   } catch (err) {
     if (err instanceof Error) {
       res.status(500).send("Error getting folder list: " + err.message);

@@ -230,7 +230,7 @@ async function getListFilesWithParents(
       const response = await drive.files.list({
         fields: "nextPageToken, files(id, name, createdTime, parents)",
         q: "trashed = false and mimeType != 'application/vnd.google-apps.folder'",
-        pageSize: 1000,
+        pageSize: 10,
         pageToken: nextPageToken,
       });
 

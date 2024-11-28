@@ -1,6 +1,6 @@
-import { Request, Response } from "express";
 import { getDBConnection } from "../conections/db";
 import { Folder } from "../models/folder";
+import { File } from "../models/file";
 
 const saveFolder = async (folderData: Folder) => {
   try {
@@ -21,8 +21,8 @@ const saveFolder = async (folderData: Folder) => {
     await db.end();
     return { success: true, message: "saved" };
   } catch (error) {
-    console.error("Error al guardar la carpeta:", error);
-    return { success: false, error: "Error interno del servidor" };
+    console.error("Error to save folder:", error);
+    return { success: false, error: "Error internal server" };
   }
 };
 
@@ -37,4 +37,29 @@ const getAllFolders = async (): Promise<Folder[]> => {
   }
 };
 
-export { saveFolder, getAllFolders };
+const saveFiles = async (file: File) => {
+  try {
+    const db = await getDBConnection();
+    await db.execute(
+      `
+        INSERT IGNORE INTO files (FileName, FileId, ParentFolderId, FileCreatedTime,UserCreated, DateCreated)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `,
+      [
+        file.FileName,
+        file.FileId,
+        file.ParentFolderId,
+        file.FileCreatedTime,
+        file.UserCreated,
+        file.DateCreated,
+      ]
+    );
+    await db.end();
+    return { success: true, message: "saved" };
+  } catch (error) {
+    console.error("Error to save file:", error);
+    return { success: false, error: "Error internal server" };
+  }
+};
+
+export { saveFolder, getAllFolders, saveFiles };
