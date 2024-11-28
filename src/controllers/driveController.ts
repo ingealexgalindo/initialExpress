@@ -3,6 +3,7 @@ import * as path from "path";
 import { google, drive_v3 } from "googleapis";
 import { OAuth2Client } from "google-auth-library";
 import { authenticate } from "@google-cloud/local-auth";
+import { FileStructure, FolderStructure } from "../models/drive";
 
 // If modifying these scopes, delete token.json.
 const SCOPES = ["https://www.googleapis.com/auth/drive.metadata.readonly"];
@@ -91,13 +92,13 @@ async function listFiles(authClient: OAuth2Client): Promise<any> {
 }
 
 /**
- * Function to get structure from folders an files
+ * Function to get all structure from folders an files
  */
 
 async function getFolderStructure(
   authClient: OAuth2Client,
   parentId: string = "root"
-): Promise<any> {
+): Promise<(FileStructure | FolderStructure)[]> {
   const drive = google.drive({ version: "v3", auth: authClient });
   const res = await drive.files.list({
     q: `'${parentId}' in parents`, // get files from folder by `parentId`
@@ -107,23 +108,24 @@ async function getFolderStructure(
   const files = res.data.files || [];
 
   //structure to save files and folders
-  let folderStructure: any = [];
+  let folderStructure: (FileStructure | FolderStructure)[] = [];
 
   for (const file of files) {
     if (file.mimeType === "application/vnd.google-apps.folder" && file.id) {
       // if is folder and have id valid, get the structure inside this folder  (recursively)
       const subFolderStructure = await getFolderStructure(authClient, file.id); // call recursively
       folderStructure.push({
-        folderName: file.name,
+        folderName: file.name != null ? file.name : "",
         folderId: file.id,
+        parentFolderId: parentId,
         files: subFolderStructure,
       });
     } else if (file.id) {
       // if it is afile and have a id valid, add to the list
       folderStructure.push({
         fileId: file.id,
-        fileName: file.name,
-        createdTime: file.createdTime,
+        fileName: file.name != null ? file.name : "",
+        createdTime: file.createdTime != null ? file.createdTime : "",
       });
     }
   }
@@ -131,4 +133,56 @@ async function getFolderStructure(
   return folderStructure;
 }
 
-export { listFiles, authorize, getFolderStructure }; // Exporta authorize también
+/**
+ * Function to get folder structure, including only files uploaded today.
+ */
+async function getFolderStructureByDate(
+  authClient: OAuth2Client,
+  parentId: string = "root",
+  today: string = new Date().toISOString().split("T")[0]
+): Promise<(FileStructure | FolderStructure)[]> {
+  const drive = google.drive({ version: "v3", auth: authClient });
+  const res = await drive.files.list({
+    q: `'${parentId}' in parents`, // Obtener archivos por parentId
+    fields: "nextPageToken, files(id, name, mimeType, createdTime)",
+  });
+
+  const files = res.data.files || [];
+  const folderStructure: (FileStructure | FolderStructure)[] = [];
+
+  for (const file of files) {
+    if (file.mimeType === "application/vnd.google-apps.folder" && file.id) {
+      // Obtener la estructura de subcarpetas
+      const subFolderStructure = await getFolderStructureByDate(
+        authClient,
+        file.id,
+        today
+      );
+
+      // Si hay archivos relevantes en la subcarpeta, agregarla
+      if (subFolderStructure.length > 0) {
+        folderStructure.push({
+          folderName: file.name || "",
+          folderId: file.id,
+          parentFolderId: parentId, // Incluir el ID de la carpeta padre
+          files: subFolderStructure,
+        });
+      }
+    } else if (
+      file.createdTime &&
+      file.createdTime.startsWith(today) // Validar archivos del día
+    ) {
+      // Si es un archivo válido del día, incluirlo
+      folderStructure.push({
+        fileId: file.id || "",
+        fileName: file.name || "",
+        createdTime: file.createdTime,
+      });
+    }
+  }
+
+  // Solo devolver las carpetas que contienen archivos relevantes
+  return folderStructure.length > 0 ? folderStructure : [];
+}
+
+export { listFiles, authorize, getFolderStructure, getFolderStructureByDate };
