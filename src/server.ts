@@ -1,18 +1,22 @@
 import express from "express";
 import bodyParser from "body-parser";
-import driveRoutes from "./routes/driveRoutes"; // Rutas de Google Drive
+import driveRoutes from "./routes/driveRoutes";
+import folderRoutes from "./routes/dbRoutes";
 
-// Crear la aplicación Express
+// config Application Express
 const app = express();
 const port = process.env.PORT || 3000;
 
-// Middleware para procesar los cuerpos de las solicitudes en JSON
+// Middleware to use json
 app.use(bodyParser.json());
 
-// Configurar rutas de Google Drive
+// routes google drive
 app.use("/api/drive", driveRoutes);
 
-// Iniciar el servidor
+// routes db folders
+app.use("/api/db", folderRoutes);
+
+// Starting server
 app.listen(port, () => {
   console.log(`Servidor corriendo en http://localhost:${port}`);
 });

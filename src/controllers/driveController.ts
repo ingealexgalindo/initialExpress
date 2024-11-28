@@ -143,7 +143,7 @@ async function getFolderStructureByDate(
 ): Promise<(FileStructure | FolderStructure)[]> {
   const drive = google.drive({ version: "v3", auth: authClient });
   const res = await drive.files.list({
-    q: `'${parentId}' in parents`, // Obtener archivos por parentId
+    q: `'${parentId}' in parents`, // get files by  parentId
     fields: "nextPageToken, files(id, name, mimeType, createdTime)",
   });
 
@@ -152,7 +152,7 @@ async function getFolderStructureByDate(
 
   for (const file of files) {
     if (file.mimeType === "application/vnd.google-apps.folder" && file.id) {
-      // Obtener la estructura de subcarpetas
+      // get structure subfolders
       const subFolderStructure = await getFolderStructureByDate(
         authClient,
         file.id,
@@ -164,15 +164,15 @@ async function getFolderStructureByDate(
         folderStructure.push({
           folderName: file.name || "",
           folderId: file.id,
-          parentFolderId: parentId, // Incluir el ID de la carpeta padre
+          parentFolderId: parentId, //include id from father folder
           files: subFolderStructure,
         });
       }
     } else if (
       file.createdTime &&
-      file.createdTime.startsWith(today) // Validar archivos del día
+      file.createdTime.startsWith(today) // validate files of day
     ) {
-      // Si es un archivo válido del día, incluirlo
+      // if it is valid file push in
       folderStructure.push({
         fileId: file.id || "",
         fileName: file.name || "",
@@ -181,7 +181,7 @@ async function getFolderStructureByDate(
     }
   }
 
-  // Solo devolver las carpetas que contienen archivos relevantes
+  // return only folder with files
   return folderStructure.length > 0 ? folderStructure : [];
 }
 
