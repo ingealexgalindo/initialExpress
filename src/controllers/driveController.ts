@@ -3,7 +3,12 @@ import * as path from "path";
 import { google, drive_v3 } from "googleapis";
 import { OAuth2Client } from "google-auth-library";
 import { authenticate } from "@google-cloud/local-auth";
-import { FileStructure, FolderStructure } from "../models/drive";
+import {
+  FileStructure,
+  FolderStructure,
+  FolderInfo,
+  FileInfo,
+} from "../models/drive";
 
 // If modifying these scopes, delete token.json.
 const SCOPES = ["https://www.googleapis.com/auth/drive.metadata.readonly"];
@@ -159,7 +164,6 @@ async function getFolderStructureByDate(
         today
       );
 
-      // Si hay archivos relevantes en la subcarpeta, agregarla
       if (subFolderStructure.length > 0) {
         folderStructure.push({
           folderName: file.name || "",
@@ -185,4 +189,77 @@ async function getFolderStructureByDate(
   return folderStructure.length > 0 ? folderStructure : [];
 }
 
-export { listFiles, authorize, getFolderStructure, getFolderStructureByDate };
+// get all folders
+async function getFolderList(
+  authClient: OAuth2Client,
+  parentId: string = "root"
+): Promise<FolderInfo[]> {
+  const drive = google.drive({ version: "v3", auth: authClient });
+
+  const res = await drive.files.list({
+    q: `'${parentId}' in parents and mimeType = 'application/vnd.google-apps.folder'`,
+    fields: "files(id, name, mimeType)",
+  });
+
+  const folders = res.data.files || [];
+  const folderStructure: FolderInfo[] = [];
+
+  for (const folder of folders) {
+    const folderData: FolderInfo = {
+      folderName: folder.name || null,
+      folderId: folder.id || "",
+      parentFolderId: parentId || null,
+    };
+
+    folderStructure.push(folderData);
+    const subFolders = await getFolderList(authClient, folder.id!);
+    folderStructure.push(...subFolders);
+  }
+  return folderStructure;
+}
+
+async function getListFilesWithParents(
+  authClient: OAuth2Client
+): Promise<FileInfo[]> {
+  const drive = google.drive({ version: "v3", auth: authClient });
+  let files: FileInfo[] = [];
+  let nextPageToken: string | undefined;
+
+  try {
+    do {
+      const response = await drive.files.list({
+        fields: "nextPageToken, files(id, name, createdTime, parents)",
+        q: "trashed = false and mimeType != 'application/vnd.google-apps.folder'",
+        pageSize: 1000,
+        pageToken: nextPageToken,
+      });
+
+      // Mapear resultados a FileInfo
+      files = files.concat(
+        response.data.files?.map((file) => ({
+          fileId: file.id!,
+          fileName: file.name || null,
+          createdTime: file.createdTime || null,
+          parentFolderId: file.parents ? file.parents[0] : "",
+        })) || []
+      );
+
+      // Obtener el siguiente token de página
+      nextPageToken = response.data.nextPageToken || "";
+    } while (nextPageToken); // Continuar hasta que no haya más páginas
+
+    return files;
+  } catch (error) {
+    console.error("Error al obtener los archivos de Google Drive:", error);
+    throw new Error("Error al obtener los archivos de Google Drive");
+  }
+}
+
+export {
+  listFiles,
+  authorize,
+  getFolderStructure,
+  getFolderStructureByDate,
+  getFolderList,
+  getListFilesWithParents,
+};

@@ -5,7 +5,10 @@ import {
   authorize,
   getFolderStructure,
   getFolderStructureByDate,
+  getFolderList,
+  getListFilesWithParents,
 } from "../controllers/driveController";
+import { saveFolder } from "../controllers/dbControllers";
 
 const router = express.Router();
 
@@ -68,6 +71,63 @@ router.get("/folder-structure-today", async (req: Request, res: Response) => {
       res
         .status(500)
         .send("Unknown error occurred while getting folder structure.");
+    }
+  }
+});
+
+// Route to get folder structure
+router.get("/folder-list", async (req: Request, res: Response) => {
+  try {
+    const authClient: OAuth2Client = await authorize();
+    const folderList = await getFolderList(authClient);
+    res.json(folderList);
+  } catch (err) {
+    if (err instanceof Error) {
+      res.status(500).send("Error getting folder list: " + err.message);
+    } else {
+      res.status(500).send("Unknown error occurred while getting structure.");
+    }
+  }
+});
+
+// Saved all folders
+router.get("/save-folder-list", async (req: Request, res: Response) => {
+  try {
+    const authClient: OAuth2Client = await authorize();
+    const folderList = await getFolderList(authClient);
+    const saveResults = [];
+
+    for (const folder of folderList) {
+      const result = await saveFolder({
+        FolderName: folder.folderName || "",
+        FolderId: folder.folderId,
+        ParentFolderId: folder.parentFolderId,
+        UserCreated: "AUTO_PROCESS",
+        DateCreated: new Date(),
+      });
+      saveResults.push(result);
+    }
+
+    res
+      .status(200)
+      .json({ message: "Folders saved successfully!", results: saveResults });
+  } catch (err) {
+    console.error("Error saving folder list:", err);
+    res.status(500).send("Error saving folder list: ");
+  }
+});
+
+// get all files with parents
+router.get("/all-filesWParents", async (req: Request, res: Response) => {
+  try {
+    const authClient: OAuth2Client = await authorize();
+    const folderList = await getListFilesWithParents(authClient);
+    res.json(folderList);
+  } catch (err) {
+    if (err instanceof Error) {
+      res.status(500).send("Error getting folder list: " + err.message);
+    } else {
+      res.status(500).send("Unknown error occurred while getting structure.");
     }
   }
 });
