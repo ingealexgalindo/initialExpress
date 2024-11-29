@@ -1,6 +1,7 @@
 import { getDBConnection } from "../conections/db";
 import { Folder } from "../models/folder";
 import { File } from "../models/file";
+import { FilesToday } from "../models/FilesToday";
 
 const saveFolder = async (folderData: Folder) => {
   try {
@@ -62,4 +63,15 @@ const saveFiles = async (file: File) => {
   }
 };
 
-export { saveFolder, getAllFolders, saveFiles };
+const getFolderFileStatusLoadedToday = async (): Promise<FilesToday[]> => {
+  try {
+    const db = await getDBConnection();
+    const [rows] = await db.query("SELECT * FROM FolderFileStatusLoadedToday");
+    return rows as FilesToday[];
+  } catch (error) {
+    console.error("Error fetching folders:", error);
+    throw error;
+  }
+};
+
+export { saveFolder, getAllFolders, saveFiles, getFolderFileStatusLoadedToday };
